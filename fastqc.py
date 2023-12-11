@@ -18,7 +18,7 @@ def aggregate(fastq, quality_scores, start_index=0, end_index=0):
     :return:
     """
     for ind in range(start_index, end_index + 1):
-        seq = fastq[ind].seq
+        # seq = fastq[ind].seq
         qualities = fastq[ind].quali
         quality_scores[ind, 0:len(qualities)] = qualities
 
