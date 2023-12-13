@@ -1,8 +1,8 @@
 from argparse import ArgumentParser
 from os import path
-
 import numpy as np
 import pyfastx
+import pandas as pd
 
 
 def read_fastq_file(filepath):
@@ -23,8 +23,20 @@ def aggregate(fastq, quality_scores, start_index=0, end_index=0):
         quality_scores[ind, 0:len(qualities)] = qualities
 
 
-def qual_per_base(quali_arr):
-    pass
+def qual_per_base(quali_arr, plot=False):
+    base_count = quali_arr.shape[1]
+    if plot:
+        pass
+    else:
+        df = pd.DataFrame(index=range(1, base_count+1))
+        df.index.name = "Base"
+        df["Mean"] = np.mean(quali_arr, axis=0)
+        df["Median"] = np.median(quali_arr, axis=0)
+        df["Lower Quartile"] = np.percentile(quali_arr, 25, axis=0)
+        df["Upper Quartile"] = np.percentile(quali_arr, 75, axis=0)
+        df["10th Percentile"] = np.percentile(quali_arr, 10, axis=0)
+        df["90th Percentile"] = np.percentile(quali_arr, 90, axis=0)
+        return df
 
 
 if __name__ == '__main__':
