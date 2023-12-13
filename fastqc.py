@@ -17,11 +17,20 @@ def aggregate(fastq, quality_scores, start_index=0, end_index=0):
 
     :return:
     """
+    lengths = np.zeros(fastq.maxlen)
+
     for ind in range(start_index, end_index + 1):
-        # seq = fastq[ind].seq
-        qualities = fastq[ind].quali
+        read = fastq[ind]
+        # seq = read.seq
+        qualities = read.quali
+
+        # get quality scores for per base sequence quality statistic
         quality_scores[ind, 0:len(qualities)] = qualities
 
+        # get length data for length distribution
+        lengths[len(read) - 1] += 1
+
+    return lengths
 
 def qual_per_base(quali_arr, plot=False):
     base_count = quali_arr.shape[1]
@@ -52,6 +61,6 @@ if __name__ == '__main__':
     num_seqs = len(fq_file)
 
     qual_scores = np.full((num_seqs, fq_file.maxlen), np.nan)
-    aggregate(fq_file, qual_scores, start_index=0, end_index=num_seqs - 1)
+    length_data = aggregate(fq_file, qual_scores, start_index=0, end_index=num_seqs - 1)
 
     qual_per_base(qual_scores)
