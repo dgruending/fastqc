@@ -54,7 +54,7 @@ def aggregate(fastq, quality_scores, start_index=0, end_index=0):
 
     for ind in range(start_index, end_index + 1):
         read = fastq[ind]
-        # seq = read.seq
+        seq = read.seq
         qualities = read.quali
 
         # get quality scores for per base sequence quality statistic
@@ -62,6 +62,10 @@ def aggregate(fastq, quality_scores, start_index=0, end_index=0):
 
         # get length data for length distribution
         lengths[len(read) - 1] += 1
+
+        # get base content information
+        for base_ind in range(len(seq)):
+            base_content[Base[seq[base_ind]].value, base_ind] += 1
 
     return lengths
 
@@ -73,12 +77,13 @@ def qual_per_base(quali_arr, plot=False):
     else:
         df = pd.DataFrame(index=range(1, base_count + 1))
         df.index.name = "Base"
-        df["Mean"] = np.mean(quali_arr, axis=0)
-        df["Median"] = np.median(quali_arr, axis=0)
-        df["Lower Quartile"] = np.percentile(quali_arr, 25, axis=0)
-        df["Upper Quartile"] = np.percentile(quali_arr, 75, axis=0)
-        df["10th Percentile"] = np.percentile(quali_arr, 10, axis=0)
-        df["90th Percentile"] = np.percentile(quali_arr, 90, axis=0)
+        # use nan methods to ignore nan values. There shouldn't be empty slices to worry about.
+        df["Mean"] = np.nanmean(quali_arr, axis=0)
+        df["Median"] = np.nanmedian(quali_arr, axis=0)
+        df["Lower Quartile"] = np.nanpercentile(quali_arr, 25, axis=0)
+        df["Upper Quartile"] = np.nanpercentile(quali_arr, 75, axis=0)
+        df["10th Percentile"] = np.nanpercentile(quali_arr, 10, axis=0)
+        df["90th Percentile"] = np.nanpercentile(quali_arr, 90, axis=0)
         return df
 
 
