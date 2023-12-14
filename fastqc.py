@@ -1,8 +1,40 @@
+import numbers
 from argparse import ArgumentParser
+from enum import Enum
 from os import path
 import numpy as np
 import pyfastx
 import pandas as pd
+
+
+class Base(Enum):
+    A = 0
+    C = 1
+    G = 2
+    T = 3
+    N = 4
+
+    def __str__(self):
+        if self == Base.A:
+            return "A"
+        elif self == Base.C:
+            return "C"
+        elif self == Base.G:
+            return "G"
+        elif self == Base.T:
+            return "T"
+        else:
+            return "N"
+
+    def __eq__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value == other.value
+        elif isinstance(other, numbers.Number):
+            return self.value == other
+        elif isinstance(other, str):
+            return self.__str__() == other
+        else:
+            raise ValueError(f"{type(other)} can not be compared: {other}")
 
 
 def read_fastq_file(filepath):
@@ -18,6 +50,7 @@ def aggregate(fastq, quality_scores, start_index=0, end_index=0):
     :return:
     """
     lengths = np.zeros(fastq.maxlen)
+    base_content = np.zeros((5, fastq.maxlen))
 
     for ind in range(start_index, end_index + 1):
         read = fastq[ind]
