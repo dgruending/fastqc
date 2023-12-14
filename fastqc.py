@@ -32,12 +32,13 @@ def aggregate(fastq, quality_scores, start_index=0, end_index=0):
 
     return lengths
 
+
 def qual_per_base(quali_arr, plot=False):
     base_count = quali_arr.shape[1]
     if plot:
         pass
     else:
-        df = pd.DataFrame(index=range(1, base_count+1))
+        df = pd.DataFrame(index=range(1, base_count + 1))
         df.index.name = "Base"
         df["Mean"] = np.mean(quali_arr, axis=0)
         df["Median"] = np.median(quali_arr, axis=0)
@@ -45,6 +46,16 @@ def qual_per_base(quali_arr, plot=False):
         df["Upper Quartile"] = np.percentile(quali_arr, 75, axis=0)
         df["10th Percentile"] = np.percentile(quali_arr, 10, axis=0)
         df["90th Percentile"] = np.percentile(quali_arr, 90, axis=0)
+        return df
+
+
+def length_distribution(lengths, plot=False):
+    if plot:
+        pass
+    else:
+        non_zero_indices = np.nonzero(lengths)[0]
+        df = pd.DataFrame(index=non_zero_indices + 1, data=lengths[non_zero_indices], columns=["Count"], dtype=int)
+        df.index.name = "Length"
         return df
 
 
@@ -64,3 +75,4 @@ if __name__ == '__main__':
     length_data = aggregate(fq_file, qual_scores, start_index=0, end_index=num_seqs - 1)
 
     qual_per_base(qual_scores)
+    length_distribution(length_data)
