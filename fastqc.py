@@ -112,6 +112,8 @@ if __name__ == '__main__':
     # TODO add help text
     parser.add_argument("-f", "--file", dest="file_path", help="", required=True)
     parser.add_argument("-o", "--output", dest="output", help="")
+    parser.add_argument("-m", "--motifs", dest="motifs", nargs='+', help="")
+    parser.add_argument("-p", "--plot", dest="plotting", action="store_true", help="")
 
     args = parser.parse_args()
 
