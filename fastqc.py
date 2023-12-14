@@ -8,10 +8,10 @@ import pandas as pd
 
 
 class Base(Enum):
-    A = 0
-    C = 1
-    G = 2
-    T = 3
+    G = 0
+    A = 1
+    T = 2
+    C = 3
     N = 4
 
     def __str__(self):
@@ -67,7 +67,7 @@ def aggregate(fastq, quality_scores, start_index=0, end_index=0):
         for base_ind in range(len(seq)):
             base_content[Base[seq[base_ind]].value, base_ind] += 1
 
-    return lengths
+    return lengths, base_content
 
 
 def qual_per_base(quali_arr, plot=False):
@@ -97,6 +97,16 @@ def length_distribution(lengths, plot=False):
         return df
 
 
+def per_base_seq_content(base_counts, plot=False):
+    base_count = base_counts.shape[1]
+    sums = np.sum(base_counts, axis=0)
+    df = pd.DataFrame(index=range(1, base_count + 1))
+    df.index.name = "Base"
+    for base in Base:
+        df[str(base)] = base_counts[base.value, :] / sums * 100
+    return df
+
+
 if __name__ == '__main__':
     parser = ArgumentParser()
     # TODO add help text
@@ -110,7 +120,8 @@ if __name__ == '__main__':
     num_seqs = len(fq_file)
 
     qual_scores = np.full((num_seqs, fq_file.maxlen), np.nan)
-    length_data = aggregate(fq_file, qual_scores, start_index=0, end_index=num_seqs - 1)
+    length_data, bases_data = aggregate(fq_file, qual_scores, start_index=0, end_index=num_seqs - 1)
 
     qual_per_base(qual_scores)
     length_distribution(length_data)
+    per_base_seq_content(bases_data)
