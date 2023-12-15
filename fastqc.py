@@ -70,7 +70,7 @@ def aggregate(fastq, quality_scores, start_index=0, end_index=0):
     return lengths, base_content
 
 
-def qual_per_base(quali_arr, plot=False):
+def qual_per_base(quali_arr, output_file, plot=False):
     base_count = quali_arr.shape[1]
     if plot:
         pass
@@ -84,36 +84,38 @@ def qual_per_base(quali_arr, plot=False):
         df["Upper Quartile"] = np.nanpercentile(quali_arr, 75, axis=0)
         df["10th Percentile"] = np.nanpercentile(quali_arr, 10, axis=0)
         df["90th Percentile"] = np.nanpercentile(quali_arr, 90, axis=0)
-        return df
+        df.to_csv(output_file)
 
 
-def length_distribution(lengths, plot=False):
+def length_distribution(lengths, output_file, plot=False):
     if plot:
         pass
     else:
         non_zero_indices = np.nonzero(lengths)[0]
         df = pd.DataFrame(index=non_zero_indices + 1, data=lengths[non_zero_indices], columns=["Count"], dtype=int)
         df.index.name = "Length"
-        return df
+        df.to_csv(output_file)
 
 
-def per_base_seq_content(base_counts, plot=False):
+def per_base_seq_content(base_counts, output_file, plot=False):
     base_count = base_counts.shape[1]
     sums = np.sum(base_counts, axis=0)
     df = pd.DataFrame(index=range(1, base_count + 1))
     df.index.name = "Base"
     for base in Base:
         df[str(base)] = base_counts[base.value, :] / sums * 100
-    return df
+    df.to_csv(output_file)
 
 
 if __name__ == '__main__':
     parser = ArgumentParser()
     # TODO add help text
     parser.add_argument("-f", "--file", dest="file_path", help="", required=True)
-    parser.add_argument("-o", "--output", dest="output", help="")
+    parser.add_argument("-o", "--output", dest="output_prefix", help="", default="./")
     parser.add_argument("-m", "--motifs", dest="motifs", nargs='+', help="")
     parser.add_argument("-p", "--plot", dest="plotting", action="store_true", help="")
+    parser.add_argument("-a", "--polya", dest="poly_a", action="store_true", help="")
+    parser.add_argument("-n", "--njobs", dest="n_jobs", help="", default=1)
 
     args = parser.parse_args()
 
@@ -124,6 +126,7 @@ if __name__ == '__main__':
     qual_scores = np.full((num_seqs, fq_file.maxlen), np.nan)
     length_data, bases_data = aggregate(fq_file, qual_scores, start_index=0, end_index=num_seqs - 1)
 
-    qual_per_base(qual_scores)
-    length_distribution(length_data)
-    per_base_seq_content(bases_data)
+    # TODO use os.path for path data
+    qual_per_base(qual_scores, args.output_prefix + "seq_qual_per_base.csv")
+    length_distribution(length_data, args.output_prefix + "seq_length.csv")
+    per_base_seq_content(bases_data, args.output_prefix + "per_base_seq_content.csv")
