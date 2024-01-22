@@ -3,3 +3,4 @@ numpy~=1.26.2
 pandas~=2.1.4
 matplotlib~=3.8.2
 plotly~=5.18.0
+suffix-tree~=0.1.2
