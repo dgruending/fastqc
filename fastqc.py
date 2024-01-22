@@ -13,6 +13,9 @@ import suffix_tree.tree
 from suffix_tree import Tree
 import plotly.express as px
 import plotly
+import time
+
+TIMING = True
 
 
 class Base(Enum):
@@ -24,6 +27,8 @@ class Base(Enum):
 
     def __str__(self):
         if self == Base.A:
+            if self == Base.C:
+                return "N"
             return "A"
         elif self == Base.C:
             return "C"
@@ -31,8 +36,6 @@ class Base(Enum):
             return "G"
         elif self == Base.T:
             return "T"
-        else:
-            return "N"
 
     def __eq__(self, other):
         if self.value == 4:
@@ -95,6 +98,10 @@ def bar_plot(data, name):
     fig.savefig(name)
 
 
+def plot_qual_per_base(data, output_path, zoom=None):
+    px.box(data)
+
+
 def qual_per_base(quali_arr, zoom_indexes, output_path, plot=False):
     base_count = quali_arr.shape[1]
     df = pd.DataFrame(index=range(1, base_count + 1))
@@ -111,6 +118,7 @@ def qual_per_base(quali_arr, zoom_indexes, output_path, plot=False):
     df.to_csv(os.path.join(output_path, "seq_qual_per_base.csv"), sep="\t")
     if plot:
         bar_plot(quali_arr, "qual_per_base.png")
+        plot_qual_per_base(pd.DataFrame(quali_arr), output_path, zoom=zoom_indexes)
     if zoom_indexes:
         zoom_df = df.loc[zoom_indexes]
         zoom_df.to_csv(os.path.join(output_path, "zoom.csv"), sep="\t")
@@ -129,13 +137,13 @@ def length_plot(data, non_zero, output_path):
     # ax.plot(x + 1, data[x], 'r')
     # fig.savefig(name)
     fig = px.line(data, y="Count", x=[data.index], title="Length Counts")
-    fig.update_layout(xaxis_title="Sequence length")
+    fig.update_layout(xaxis_title="Sequence length", showlegend=False)
     plotly.offline.plot(fig, filename=os.path.join(output_path, "length_distribution.html"))
 
 
 def length_distribution(lengths, output_path, plot=False):
     non_zero_indices = np.nonzero(lengths)[0]
-    df = pd.DataFrame(index=range(1, len(lengths)+1), data=lengths, columns=["Count"], dtype=int)
+    df = pd.DataFrame(index=range(1, len(lengths) + 1), data=lengths, columns=["Count"], dtype=int)
     df.index.name = "Length"
     df.iloc[non_zero_indices].to_csv(os.path.join(output_path, "seq_length.csv"), sep="\t")
     if plot:
@@ -143,7 +151,10 @@ def length_distribution(lengths, output_path, plot=False):
 
 
 def seq_content_plot(data, name):
-    pass
+    data = data.reset_index()
+    fig = px.line(data, x="Base", y=data.columns[1:], title="Sequence content")
+    fig.update_layout(yaxis_title="Base content %")
+    plotly.offline.plot(fig, name)
 
 
 def per_base_seq_content(base_counts, output_path, plot=False):
@@ -155,16 +166,25 @@ def per_base_seq_content(base_counts, output_path, plot=False):
         df[str(base)] = base_counts[base.value, :] / sums * 100
     df.to_csv(os.path.join(output_path, "per_base_seq_content.csv"), sep="\t")
     if plot:
-        seq_content_plot(df, "seq_content.png")
+        seq_content_plot(df, os.path.join(output_path, "base_seq_content.html"))
+
+
+def plot_motif_counts(data, name):
+    data = data.reset_index()
+    fig = px.line(data, x="Base", y=data.columns[1:], title="Motif start positions")
+    fig.update_layout(yaxis_title="Count")
+    plotly.offline.plot(fig, name)
 
 
 def motif_statistic(motif_data, motifs, output_path, plot=False):
     non_zero_columns_ind = np.unique(np.nonzero(motif_data)[1])
-    df = pd.DataFrame(index=non_zero_columns_ind + 1)
+    df = pd.DataFrame(index=range(1, motif_data.shape[1] + 1))
     df.index.name = "Base"
     for ind, motif in enumerate(motifs):
-        df[motif] = motif_data[ind, non_zero_columns_ind]
-    df.to_csv(os.path.join(output_path, "motif_counts.csv"), sep="\t")
+        df[motif] = motif_data[ind]
+    df.iloc[non_zero_columns_ind].to_csv(os.path.join(output_path, "motif_counts.csv"), sep="\t")
+    if plot:
+        plot_motif_counts(df, os.path.join(output_path, "motif_counts.html"))
 
 
 def main(file_path, num_seqs, max_len, pattern_list, barcode_ind, plotting, n_jobs, output_path):
@@ -252,5 +272,11 @@ if __name__ == '__main__':
     barcode_ind = get_barcode_ind(args.barcode)
     if args.n_jobs <= 0:
         args.n_jobs = 1
-
+    if TIMING:
+        start = time.time()
     main(args.file_path, num_seqs, fq_file.maxlen, pattern_list, barcode_ind, args.plotting, args.n_jobs, args.output)
+    if TIMING:
+        end = time.time()
+        # noinspection PyUnboundLocalVariable
+        print("The time of execution of above program is :",
+              (end - start) * 10 ** 3, "ms")
