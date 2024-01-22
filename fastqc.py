@@ -12,7 +12,6 @@ import pyfastx
 import suffix_tree.tree
 from suffix_tree import Tree
 import plotly.express as px
-import plotly
 import time
 
 TIMING = True
@@ -138,7 +137,7 @@ def length_plot(data, non_zero, output_path):
     # fig.savefig(name)
     fig = px.line(data, y="Count", x=[data.index], title="Length Counts")
     fig.update_layout(xaxis_title="Sequence length", showlegend=False)
-    plotly.offline.plot(fig, filename=os.path.join(output_path, "length_distribution.html"))
+    fig.write_html(os.path.join(output_path, "length_distribution.html"))
 
 
 def length_distribution(lengths, output_path, plot=False):
@@ -154,7 +153,7 @@ def seq_content_plot(data, name):
     data = data.reset_index()
     fig = px.line(data, x="Base", y=data.columns[1:], title="Sequence content")
     fig.update_layout(yaxis_title="Base content %")
-    plotly.offline.plot(fig, name)
+    fig.write_html(name)
 
 
 def per_base_seq_content(base_counts, output_path, plot=False):
@@ -173,7 +172,7 @@ def plot_motif_counts(data, name):
     data = data.reset_index()
     fig = px.line(data, x="Base", y=data.columns[1:], title="Motif start positions")
     fig.update_layout(yaxis_title="Count")
-    plotly.offline.plot(fig, name)
+    fig.write_html(name)
 
 
 def motif_statistic(motif_data, motifs, output_path, plot=False):
