@@ -12,10 +12,6 @@ import pyfastx
 import suffix_tree.tree
 from suffix_tree import Tree
 import plotly.express as px
-import time
-import logging
-
-TIMING = True
 
 
 class Base(Enum):
@@ -192,12 +188,10 @@ def main(file_path, num_seqs, max_len, pattern_list, barcode_ind, plotting, n_jo
                 range(n_jobs)]
     with mp.Pool(processes=n_jobs) as pool:
         result = pool.starmap(aggregate_async, arg_list)
-        logging.debug("Finished aggregation")
         length_data = 0
         base_content_data = 0
         motif_data = 0
         qual_data = np.zeros((num_seqs, max_len), dtype=np.uint8)
-        logging.debug(f"{sys.getsizeof(qual_data) / 1024**3} GB for all quality scores combined")
 
         ind = 0
         for qual_scores, lengths, bases, motif_count in result:
@@ -219,11 +213,8 @@ def main(file_path, num_seqs, max_len, pattern_list, barcode_ind, plotting, n_jo
 
 def aggregate_async(file_path, max_len, motifs, block):
     fq = read_fastq_file(file_path)
-    start_time = time.time()
     start, end = block
-    logging.debug(f"Process {start}: Starting aggregation: {end - start} sequences to do.")
     quality_scores = np.zeros((end - start, fq_file.maxlen), dtype=np.uint8)
-    logging.debug(f"Process {start}: {sys.getsizeof(quality_scores) / 1024**3} GB allocated for quality scores.")
     lengths = np.zeros(max_len)
     base_content = np.zeros((5, max_len))
     motifs_occ = np.zeros((len(motifs), max_len))
@@ -250,16 +241,10 @@ def aggregate_async(file_path, max_len, motifs, block):
             if motif_start < len(seq):
                 motifs_occ[motif_ind, motif_start] += 1
 
-        # debugging log
-        if start == 0 or qual_ind % 999999 == 0 :
-            logging.debug(f"Process {start}: {qual_ind + 1} sequences done elapsed time "
-                          f"{(time.time() - start_time) * 10**3} ms")
-
     return quality_scores, lengths, base_content, motifs_occ
 
 
 if __name__ == '__main__':
-    logging.basicConfig(filename='debug.log', filemode='w', encoding='utf-8', level=logging.DEBUG)
     parser = ArgumentParser()
     # TODO add help text
     parser.add_argument("-f", "--file", dest="file_path", help="", required=True)
@@ -282,10 +267,4 @@ if __name__ == '__main__':
     barcode_ind = get_barcode_ind(args.barcode)
     if args.n_jobs <= 0:
         args.n_jobs = 1
-    if TIMING:
-        start = time.time()
     main(args.file_path, num_seqs, fq_file.maxlen, pattern_list, barcode_ind, args.plotting, args.n_jobs, args.output)
-    if TIMING:
-        end = time.time()
-        # noinspection PyUnboundLocalVariable
-        logging.debug(f"The time of execution of above program is : {(end - start) * 10 ** 3} ms")
