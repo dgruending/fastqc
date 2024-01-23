@@ -106,15 +106,14 @@ def qual_per_base(quali_arr, zoom_indexes, output_path, plot=False):
     base_count = quali_arr.shape[1]
     df = pd.DataFrame(index=range(1, base_count + 1))
     df.index.name = "Base"
-    # use nan methods to ignore nan values. There shouldn't be empty slices to worry about.
-    df["Mean"] = np.nanmean(quali_arr, axis=0)
-    df["Median"] = np.nanmedian(quali_arr, axis=0)
-    df["Lower Quartile"] = np.nanpercentile(quali_arr, 25, axis=0)
-    df["Upper Quartile"] = np.nanpercentile(quali_arr, 75, axis=0)
-    df["10th Percentile"] = np.nanpercentile(quali_arr, 10, axis=0)
-    df["90th Percentile"] = np.nanpercentile(quali_arr, 90, axis=0)
-    df["Minimum"] = np.nanmin(quali_arr, axis=0)
-    df["Maximum"] = np.nanmax(quali_arr, axis=0)
+    df["Mean"] = np.mean(quali_arr, axis=0)
+    df["Median"] = np.median(quali_arr, axis=0)
+    df["Lower Quartile"] = np.percentile(quali_arr, 25, axis=0)
+    df["Upper Quartile"] = np.percentile(quali_arr, 75, axis=0)
+    df["10th Percentile"] = np.percentile(quali_arr, 10, axis=0)
+    df["90th Percentile"] = np.percentile(quali_arr, 90, axis=0)
+    df["Minimum"] = np.min(quali_arr, axis=0)
+    df["Maximum"] = np.max(quali_arr, axis=0)
     df.to_csv(os.path.join(output_path, "seq_qual_per_base.csv"), sep="\t")
     if plot:
         bar_plot(quali_arr, "qual_per_base.png")
@@ -198,7 +197,7 @@ def main(file_path, num_seqs, max_len, pattern_list, barcode_ind, plotting, n_jo
         base_content_data = 0
         motif_data = 0
         qual_data = np.zeros((num_seqs, max_len), dtype=np.uint8)
-        logging.debug(f"{sys.getsizeof(qual_data) / 1024**3} GB")
+        logging.debug(f"{sys.getsizeof(qual_data) / 1024**3} GB for all quality scores combined")
 
         ind = 0
         for qual_scores, lengths, bases, motif_count in result:
@@ -219,11 +218,12 @@ def main(file_path, num_seqs, max_len, pattern_list, barcode_ind, plotting, n_jo
 
 
 def aggregate_async(file_path, max_len, motifs, block):
-    logging.debug("Starting aggregation")
     fq = read_fastq_file(file_path)
+    start_time = time.time()
     start, end = block
+    logging.debug(f"Process {start}: Starting aggregation: {end - start} sequences to do.")
     quality_scores = np.zeros((end - start, fq_file.maxlen), dtype=np.uint8)
-    logging.debug(f"{sys.getsizeof(quality_scores) / 1024**3} GB")
+    logging.debug(f"Process {start}: {sys.getsizeof(quality_scores) / 1024**3} GB allocated for quality scores.")
     lengths = np.zeros(max_len)
     base_content = np.zeros((5, max_len))
     motifs_occ = np.zeros((len(motifs), max_len))
@@ -249,6 +249,11 @@ def aggregate_async(file_path, max_len, motifs, block):
             motif_start = find_index(tree, motif)
             if motif_start < len(seq):
                 motifs_occ[motif_ind, motif_start] += 1
+
+        # debugging log
+        if qual_ind % 99999 == 0:
+            logging.debug(f"Process {start}: {qual_ind + 1} sequences done elapsed time "
+                          f"{(time.time() - start_time) * 10**3} ms")
 
     return quality_scores, lengths, base_content, motifs_occ
 
