@@ -13,6 +13,7 @@ import suffix_tree.tree
 from suffix_tree import Tree
 import plotly.express as px
 import time
+import logging
 
 TIMING = True
 
@@ -192,10 +193,12 @@ def main(file_path, num_seqs, max_len, pattern_list, barcode_ind, plotting, n_jo
                 range(n_jobs)]
     with mp.Pool(processes=n_jobs) as pool:
         result = pool.starmap(aggregate_async, arg_list)
+        logging.debug("Finished aggregation")
         length_data = 0
         base_content_data = 0
         motif_data = 0
-        qual_data = np.zeros((num_seqs, max_len))
+        qual_data = np.zeros((num_seqs, max_len), dtype=np.uint8)
+        logging.debug(f"{sys.getsizeof(qual_data) / 1024**3} GB")
 
         ind = 0
         for qual_scores, lengths, bases, motif_count in result:
@@ -216,9 +219,11 @@ def main(file_path, num_seqs, max_len, pattern_list, barcode_ind, plotting, n_jo
 
 
 def aggregate_async(file_path, max_len, motifs, block):
+    logging.debug("Starting aggregation")
     fq = read_fastq_file(file_path)
     start, end = block
-    quality_scores = np.full((end - start, fq_file.maxlen), np.nan)
+    quality_scores = np.zeros((end - start, fq_file.maxlen), dtype=np.uint8)
+    logging.debug(f"{sys.getsizeof(quality_scores) / 1024**3} GB")
     lengths = np.zeros(max_len)
     base_content = np.zeros((5, max_len))
     motifs_occ = np.zeros((len(motifs), max_len))
@@ -249,6 +254,7 @@ def aggregate_async(file_path, max_len, motifs, block):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(filename='debug.log', filemode='w', encoding='utf-8', level=logging.DEBUG)
     parser = ArgumentParser()
     # TODO add help text
     parser.add_argument("-f", "--file", dest="file_path", help="", required=True)
@@ -277,5 +283,4 @@ if __name__ == '__main__':
     if TIMING:
         end = time.time()
         # noinspection PyUnboundLocalVariable
-        print("The time of execution of above program is :",
-              (end - start) * 10 ** 3, "ms")
+        logging.debug(f"The time of execution of above program is : {(end - start) * 10 ** 3} ms")
