@@ -251,7 +251,7 @@ def aggregate_async(file_path, max_len, motifs, block):
                 motifs_occ[motif_ind, motif_start] += 1
 
         # debugging log
-        if qual_ind % 99999 == 0:
+        if start == 0 or qual_ind % 999999 == 0 :
             logging.debug(f"Process {start}: {qual_ind + 1} sequences done elapsed time "
                           f"{(time.time() - start_time) * 10**3} ms")
 
