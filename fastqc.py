@@ -349,10 +349,10 @@ def aggregate(file_path, max_len, motifs, block, process_id):
         fq = read_fastq_file(file_path)
         start_time = time.time()
         start, end = block
-        logging.debug(f"Process {start}: Starting aggregation: {end - start} sequences to do.")
+        logging.debug(f"Process {process_id}: Starting aggregation: {end - start} sequences to do.")
         # init arrays
         quality_scores = np.zeros((end - start, fq_file.maxlen), dtype=np.uint8)
-        logging.debug(f"Process {start}: {sys.getsizeof(quality_scores) / 1024 ** 3} GB allocated for quality scores.")
+        logging.debug(f"Process {process_id}: {sys.getsizeof(quality_scores) / 1024 ** 3} GB allocated for quality scores.")
         lengths = np.zeros(max_len)
         base_content = np.zeros((5, max_len))
         motifs_occ = np.zeros((len(motifs), max_len))
@@ -383,14 +383,14 @@ def aggregate(file_path, max_len, motifs, block, process_id):
 
             # debugging log
             if (start == 0 and qual_ind % 1000 == 0) or qual_ind % 1000000 == 0:
-                logging.debug(f"Process {start}: {qual_ind + 1} sequences done elapsed time "
-                              f"{(time.time() - start_time) * 10 ** 3} ms")
+                logging.debug(f"Process {process_id}: {qual_ind + 1} sequences done elapsed time "
+                              f"{(time.time() - start_time)} s")
 
     return quality_scores, lengths, base_content, motifs_occ
 
 
 if __name__ == '__main__':
-    logging.basicConfig(filename='debug.log', filemode='w', encoding='utf-8', level=logging.INFO)
+    logging.basicConfig(filename='debug.log', filemode='w', encoding='utf-8', level=logging.DEBUG)
     parser = ArgumentParser()
     # could do settings as file, for easier calls
     parser.add_argument("-f", "--file", dest="file_path", help="un-/zipped fastq file", required=True)
