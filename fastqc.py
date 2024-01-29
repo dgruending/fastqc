@@ -425,4 +425,4 @@ if __name__ == '__main__':
     if TIMING:
         time_end = time.time()
         # noinspection PyUnboundLocalVariable
-        logging.info(f"The time of execution of above program is : {(time_end - time_start) * 10 ** 3} ms")
+        logging.info(f"The time of execution of above program is : {(time_end - time_start)} s")
