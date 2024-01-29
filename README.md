@@ -6,7 +6,7 @@ This is python script, trying to replicate some and add specific functionality t
 
 1. Clone repository: `git clone https://github.com/dgruending/fastqc.git`
 1. Install requirements: `pip install -r requirements.txt`
-1. Call script: `python [-o] fastqc.py -f FILE [args]` Consider using `python -o` for optimization.
+1. Call script: `python [-O] fastqc.py -f FILE [args]` Consider using `python -O` for optimization.
 
 # Command line arguments
 

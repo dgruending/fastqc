@@ -373,12 +373,13 @@ def aggregate(file_path, max_len, motifs, block, process_id):
             for base_ind in range(len(seq)):
                 base_content[Base[seq[base_ind]].value, base_ind] += 1
 
-            # motif matching
-            tree = Tree({0: seq})
-            for motif_ind, motif in enumerate(motifs):
-                motif_start = find_index(tree, motif)
-                if motif_start < len(seq):
-                    motifs_occ[motif_ind, motif_start] += 1
+        # motif matching
+            if motifs:
+                tree = Tree({0: seq})
+                for motif_ind, motif in enumerate(motifs):
+                    motif_start = find_index(tree, motif)
+                    if motif_start < len(seq):
+                        motifs_occ[motif_ind, motif_start] += 1
 
             # debugging log
             if (start == 0 and qual_ind % 1000 == 0) or qual_ind % 1000000 == 0:
