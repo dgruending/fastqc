@@ -1,6 +1,6 @@
 # fastqc
 
-This is python script, trying to replicate and add some functionality to the FastQC tool[[1]](#1).
+This is python script, trying to replicate some and add specific functionality to the FastQC tool[[1]](#1).
 
 # Installation
 
