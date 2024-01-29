@@ -17,6 +17,8 @@ from suffix_tree import Tree
 import time
 import logging
 
+from viztracer import VizTracer
+
 TIMING = True
 
 
@@ -92,18 +94,18 @@ def _find_index(node, pattern, pattern_ind):
     :return: number of pattern start position or a number >= len(text)
     """
     if isinstance(node, suffix_tree.node.Leaf):
-        match_ind = node.time_start
+        match_ind = node.start
         # match rest of pattern against rest of text
         for (char_motif, char_seq) in zip(pattern[pattern_ind:], node.S[match_ind + pattern_ind:]):
             # Text ended or mismatch
             if not isinstance(char_seq, suffix_tree.util.UniqueEndChar) and Base[char_motif] != Base[char_seq]:
                 return node.end
-        return node.time_start
+        return node.start
 
     else:
         # check for pattern ending
         if pattern_ind == len(pattern):
-            return node.time_start
+            return node.start
         keys = [key for key in node.children.keys() if isinstance(key, suffix_tree.util.UniqueEndChar)
                 or Base[key] == Base[pattern[pattern_ind]]]
         indices = [_find_index(node.children[key], pattern, pattern_ind + 1) for key in keys]
@@ -302,7 +304,7 @@ def motif_statistic(motif_data, motifs, output_path, plot=False):
 def main(file_path, numb_seqs, max_len, patterns_list, barcode_indices, plotting, n_jobs, output_path):
     block_size = numb_seqs / n_jobs
     # due to int conversion and potential float block_size even the last sequence is considered
-    arg_list = [(file_path, max_len, patterns_list, (int(i * block_size), int((i + 1) * block_size))) for i in
+    arg_list = [(file_path, max_len, patterns_list, (int(i * block_size), int((i + 1) * block_size)), i) for i in
                 range(n_jobs)]
     with mp.Pool(processes=n_jobs) as pool:
         result = pool.starmap(aggregate, arg_list)
@@ -332,60 +334,62 @@ def main(file_path, numb_seqs, max_len, patterns_list, barcode_indices, plotting
             process.wait()
 
 
-def aggregate(file_path, max_len, motifs, block):
+def aggregate(file_path, max_len, motifs, block, process_id):
     """
     Aggregate quality, length, base count and pattern count data.
 
+    :param process_id: number used to distinguish processes for debugging and profiling
     :param file_path: path-like object to fastq file
     :param max_len: maximal sequence length
     :param motifs: iterable of motifs/pattern
     :param block: tuple with inclusive start index and exclusive end index of sequences to process
     :return: arrays for quality, length, base count and pattern count data
     """
-    fq = read_fastq_file(file_path)
-    start_time = time.time()
-    start, end = block
-    logging.debug(f"Process {start}: Starting aggregation: {end - start} sequences to do.")
-    # init arrays
-    quality_scores = np.zeros((end - start, fq_file.maxlen), dtype=np.uint8)
-    logging.debug(f"Process {start}: {sys.getsizeof(quality_scores) / 1024**3} GB allocated for quality scores.")
-    lengths = np.zeros(max_len)
-    base_content = np.zeros((5, max_len))
-    motifs_occ = np.zeros((len(motifs), max_len))
+    with VizTracer(output_file=f"{process_id}.json", tracer_entries=block[1]*10) as tracer:
+        fq = read_fastq_file(file_path)
+        start_time = time.time()
+        start, end = block
+        logging.debug(f"Process {start}: Starting aggregation: {end - start} sequences to do.")
+        # init arrays
+        quality_scores = np.zeros((end - start, fq_file.maxlen), dtype=np.uint8)
+        logging.debug(f"Process {start}: {sys.getsizeof(quality_scores) / 1024 ** 3} GB allocated for quality scores.")
+        lengths = np.zeros(max_len)
+        base_content = np.zeros((5, max_len))
+        motifs_occ = np.zeros((len(motifs), max_len))
 
-    for qual_ind, ind in enumerate(range(start, end)):
-        read = fq[ind]
-        seq = read.seq
-        qualities = read.quali
+        for qual_ind, ind in enumerate(range(start, end)):
+            read = fq[ind]
+            seq = read.seq
+            qualities = read.quali
 
-        # get quality scores for per base sequence quality statistic
-        quality_scores[qual_ind, 0:len(qualities)] = qualities
+            # get quality scores for per base sequence quality statistic
+            quality_scores[qual_ind, 0:len(qualities)] = qualities
 
-        # get length data for length distribution
-        lengths[len(read) - 1] += 1
+            # get length data for length distribution
+            lengths[len(read) - 1] += 1
 
-        # get base content information
-        # TODO optimize?
-        for base_ind in range(len(seq)):
-            base_content[Base[seq[base_ind]].value, base_ind] += 1
+            # get base content information
+            # TODO optimize?
+            for base_ind in range(len(seq)):
+                base_content[Base[seq[base_ind]].value, base_ind] += 1
 
-        # motif matching
-        tree = Tree({0: seq})
-        for motif_ind, motif in enumerate(motifs):
-            motif_start = find_index(tree, motif)
-            if motif_start < len(seq):
-                motifs_occ[motif_ind, motif_start] += 1
+            # motif matching
+            tree = Tree({0: seq})
+            for motif_ind, motif in enumerate(motifs):
+                motif_start = find_index(tree, motif)
+                if motif_start < len(seq):
+                    motifs_occ[motif_ind, motif_start] += 1
 
-        # debugging log
-        if (start == 0 and qual_ind % 1000 == 0) or qual_ind % 1000000 == 0:
-            logging.debug(f"Process {start}: {qual_ind + 1} sequences done elapsed time "
-                          f"{(time.time() - start_time) * 10**3} ms")
+            # debugging log
+            if (start == 0 and qual_ind % 1000 == 0) or qual_ind % 1000000 == 0:
+                logging.debug(f"Process {start}: {qual_ind + 1} sequences done elapsed time "
+                              f"{(time.time() - start_time) * 10 ** 3} ms")
 
     return quality_scores, lengths, base_content, motifs_occ
 
 
 if __name__ == '__main__':
-    logging.basicConfig(filename='debug.log', filemode='w', encoding='utf-8', level=logging.DEBUG)
+    logging.basicConfig(filename='debug.log', filemode='w', encoding='utf-8', level=logging.INFO)
     parser = ArgumentParser()
     # could do settings as file, for easier calls
     parser.add_argument("-f", "--file", dest="file_path", help="un-/zipped fastq file", required=True)
@@ -416,8 +420,9 @@ if __name__ == '__main__':
 
     if TIMING:
         time_start = time.time()
-    main(args.file_path, num_seqs, fq_file.maxlen, pattern_list, barcode_ind, args.plotting, args.n_jobs, args.output)
+    main(args.file_path, num_seqs, fq_file.maxlen, pattern_list, barcode_ind, args.plotting, args.n_jobs,
+         args.output)
     if TIMING:
         time_end = time.time()
         # noinspection PyUnboundLocalVariable
-        logging.debug(f"The time of execution of above program is : {(time_end - time_start) * 10 ** 3} ms")
+        logging.info(f"The time of execution of above program is : {(time_end - time_start) * 10 ** 3} ms")

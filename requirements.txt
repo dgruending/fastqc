@@ -1,6 +1,5 @@
 pyfastx~=2.0.2
-numpy~=1.26.2
-pandas~=2.1.4
-matplotlib~=3.8.2
+numpy~=1.24.4
+pandas~=2.0.3
 plotly~=5.18.0
-suffix-tree~=0.1.2
+viztracer~=0.16.1
