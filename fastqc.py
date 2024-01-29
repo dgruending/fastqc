@@ -1,17 +1,19 @@
+import multiprocessing as mp
 import numbers
 import os.path
 import sys
 from argparse import ArgumentParser
 from enum import Enum
 from os import path
-import multiprocessing as mp
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 import pyfastx
 import suffix_tree.tree
 from suffix_tree import Tree
-import plotly.express as px
-import plotly.graph_objects as go
 
 
 class Base(Enum):
@@ -152,7 +154,8 @@ def box_plot(arr, name, save_loc, indexes=None):
         for base_ind in range(9):
             fig.add_trace(go.Box(y=arr[:, base_ind], name=f"Base {base_ind + 1}"))
         for base_ind in range(14, len(indexes), 5):
-            fig.add_trace(go.Box(y=np.ravel(arr[:, base_ind-5:base_ind]), name=f"Base {base_ind - 4} - {base_ind + 1}"))
+            fig.add_trace(
+                go.Box(y=np.ravel(arr[:, base_ind - 5:base_ind]), name=f"Base {base_ind - 4} - {base_ind + 1}"))
     else:
         for base_ind in indexes:
             fig.add_trace(go.Box(y=arr[:, base_ind], name=f"Base {base_ind + 1}"))
@@ -395,4 +398,7 @@ if __name__ == '__main__':
     barcode_ind = get_barcode_ind(args.barcode)
     if args.n_jobs <= 0:
         args.n_jobs = 1
+    # check if output directory exists, else make it
+    Path(args.output).mkdir(parents=True, exist_ok=True)
+
     main(args.file_path, num_seqs, fq_file.maxlen, pattern_list, barcode_ind, args.plotting, args.n_jobs, args.output)
