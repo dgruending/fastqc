@@ -5,13 +5,13 @@ from argparse import ArgumentParser
 from enum import Enum
 from os import path
 import multiprocessing as mp
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pyfastx
 import suffix_tree.tree
 from suffix_tree import Tree
 import plotly.express as px
+import plotly.graph_objects as go
 
 
 class Base(Enum):
@@ -21,8 +21,15 @@ class Base(Enum):
     C = 3
     N = 4
 
+    @property
     def __str__(self):
+        """
+        Single letter string representation of the Base.
+
+        :return: string
+        """
         if self == Base.A:
+            # needed because Base.N matches everything
             if self == Base.C:
                 return "N"
             return "A"
@@ -33,7 +40,15 @@ class Base(Enum):
         elif self == Base.T:
             return "T"
 
+    # Can compare(equal) to Base, number and string
     def __eq__(self, other):
+        """
+        Check for equality with Base, number or string.
+
+        :param other:  Base, number or string.
+        :return: bool
+        """
+        # if self = Base.N
         if self.value == 4:
             return True
         if self.__class__ is other.__class__:
@@ -44,30 +59,48 @@ class Base(Enum):
         elif isinstance(other, numbers.Number):
             return self.value == other
         elif isinstance(other, str):
-            return self.__str__() == other
+            return self.__str__ == other
         else:
             raise ValueError(f"{type(other)} can not be compared: {other}")
 
 
-def find_index(tree, motif):
+def find_index(tree, pattern):
+    """
+    Finds the first index, where the pattern is fully represented or reaches the text end.
+
+    :param tree: suffix_tree to be searched.
+    :param pattern: string-like object.
+    :return: number of pattern start position or a number >= len(text)
+    """
     node = tree.root
-    return _find_index(node, motif, 0)
+    return _find_index(node, pattern, 0)
 
 
-def _find_index(node, motif, ind):
+def _find_index(node, pattern, pattern_ind):
+    """
+    Recursive pattern search in the subtree.
+
+    :param node: currently searched node
+    :param pattern: string-like object.
+    :param pattern_ind: match position in pattern
+    :return: number of pattern start position or a number >= len(text)
+    """
     if isinstance(node, suffix_tree.node.Leaf):
         match_ind = node.start
-        for (char_motif, char_seq) in zip(motif[ind:], node.S[match_ind + ind:]):
+        # match rest of pattern against rest of text
+        for (char_motif, char_seq) in zip(pattern[pattern_ind:], node.S[match_ind + pattern_ind:]):
+            # Text ended or mismatch
             if not isinstance(char_seq, suffix_tree.util.UniqueEndChar) and Base[char_motif] != Base[char_seq]:
                 return node.end
         return node.start
 
     else:
-        if ind == len(motif):
+        # check for pattern ending
+        if pattern_ind == len(pattern):
             return node.start
         keys = [key for key in node.children.keys() if isinstance(key, suffix_tree.util.UniqueEndChar)
-                or Base[key] == Base[motif[ind]]]
-        indices = [_find_index(node.children[key], motif, ind + 1) for key in keys]
+                or Base[key] == Base[pattern[pattern_ind]]]
+        indices = [_find_index(node.children[key], pattern, pattern_ind + 1) for key in keys]
         if indices:
             return min(indices)
         else:
@@ -75,124 +108,204 @@ def _find_index(node, motif, ind):
 
 
 def get_barcode_ind(barcode):
+    """
+    Extract barcode indices from string representation.
+
+    :param barcode: string-like object; representing a barcode.
+    :return: list of indices
+    """
     if barcode:
         return [ind for ind, char in enumerate(barcode, start=1) if char == 'X']
     else:
         return []
 
 
-def read_fastq_file(filepath):
-    if path.exists(filepath):
+def read_fastq_file(file_path):
+    """
+    Reads a Fastq-file.
+
+    :param file_path: path-like object to file
+    :return: Fastq-file object
+    """
+    if path.exists(file_path):
         return pyfastx.Fastq(args.file_path)
     else:
-        raise FileNotFoundError(f"FastQ file \"{args.file_path}\" does not exist.")
+        raise FileNotFoundError(f"FastQ file \"{file_path}\" does not exist.")
 
 
-def bar_plot(data, name):
-    fig, ax = plt.subplots()
-    ax.boxplot(data)
-    fig.savefig(name)
+def box_plot(arr, name, save_loc, indexes=None):
+    """
+    Makes a plotly boxplot for a given array of quality values.
+
+    :param arr: array of quality values.
+    :param name: string-like object for plot title
+    :param save_loc: path-like object for plot save location
+    :param indexes: iterable of columns to use; if None all are used; default=None
+    """
+    fig = go.Figure()
+    # TODO add y-axis label
+    fig.update_layout(showlegend=False, title=name)
+    if indexes is None:
+        indexes = range(arr.shape[1])
+    if len(indexes) > 20:
+        # TODO make plots without all data points to improve performance
+        for base_ind in range(9):
+            fig.add_trace(go.Box(y=arr[:, base_ind], name=f"Base {base_ind + 1}"))
+        for base_ind in range(14, len(indexes), 5):
+            fig.add_trace(go.Box(y=np.ravel(arr[:, base_ind-5:base_ind]), name=f"Base {base_ind - 4} - {base_ind + 1}"))
+    else:
+        for base_ind in indexes:
+            fig.add_trace(go.Box(y=arr[:, base_ind], name=f"Base {base_ind + 1}"))
+    fig.write_html(save_loc)
 
 
-def plot_qual_per_base(data, output_path, zoom=None):
-    px.box(data)
+def quality_per_base(quality_arr, zoom_indexes, output_path, plot=False):
+    """
+    Makes base position quality statistic.
+    Calculates mean, median, minimum, maximum, 10-, 25-, 75- and 90-quartile.
 
-
-def qual_per_base(quali_arr, zoom_indexes, output_path, plot=False):
-    base_count = quali_arr.shape[1]
+    :param quality_arr: array(sequence x base_position) of quality values
+    :param zoom_indexes: list or array of positions to save/plot additionally
+    :param output_path: path-like object to save location
+    :param plot: boolean value, if plotting will be done; defaults to False
+    """
+    base_count = quality_arr.shape[1]
     df = pd.DataFrame(index=range(1, base_count + 1))
     df.index.name = "Base"
-    df["Mean"] = np.mean(quali_arr, axis=0)
-    df["Median"] = np.median(quali_arr, axis=0)
-    df["Lower Quartile"] = np.percentile(quali_arr, 25, axis=0)
-    df["Upper Quartile"] = np.percentile(quali_arr, 75, axis=0)
-    df["10th Percentile"] = np.percentile(quali_arr, 10, axis=0)
-    df["90th Percentile"] = np.percentile(quali_arr, 90, axis=0)
-    df["Minimum"] = np.min(quali_arr, axis=0)
-    df["Maximum"] = np.max(quali_arr, axis=0)
+    # quality array could have values of 0 representing no quality entry,
+    # because for example the sequence has ended early
+    # TODO handle missing values separately
+    df["Mean"] = np.mean(quality_arr, axis=0)
+    df["Median"] = np.median(quality_arr, axis=0)
+    df["Lower Quartile"] = np.percentile(quality_arr, 25, axis=0)
+    df["Upper Quartile"] = np.percentile(quality_arr, 75, axis=0)
+    df["10th Percentile"] = np.percentile(quality_arr, 10, axis=0)
+    df["90th Percentile"] = np.percentile(quality_arr, 90, axis=0)
+    df["Minimum"] = np.min(quality_arr, axis=0)
+    df["Maximum"] = np.max(quality_arr, axis=0)
     df.to_csv(os.path.join(output_path, "seq_qual_per_base.csv"), sep="\t")
     if plot:
-        bar_plot(quali_arr, "qual_per_base.png")
-        plot_qual_per_base(pd.DataFrame(quali_arr), output_path, zoom=zoom_indexes)
+        box_plot(quality_arr, "Sequence Quality per Base",
+                 os.path.join(output_path, "seq_qual_per_base.html"))
     if zoom_indexes:
         zoom_df = df.loc[zoom_indexes]
         zoom_df.to_csv(os.path.join(output_path, "zoom.csv"), sep="\t")
         if plot:
-            bar_plot(quali_arr[zoom_indexes], "barcode_error.png")
+            box_plot(quality_arr, "Barcode quality", os.path.join(output_path, "barcode_quality.html"),
+                     indexes=zoom_indexes)
 
 
-def length_plot(data, non_zero, output_path):
-    # start, stop = non_zero
-    # if start != 0:
-    #     start -= 1
-    # if stop != len(data) - 1:
-    #     stop += 1
-    # x = np.array(range(start, stop + 1))
-    # fig, ax = plt.subplots()
-    # ax.plot(x + 1, data[x], 'r')
-    # fig.savefig(name)
+def length_plot(data, output_path):
+    """
+    Makes a plotly line plot for the length distribution.
+
+    :param data: dataframe with "Count" column
+    :param output_path: path-like object for save location
+    """
     fig = px.line(data, y="Count", x=[data.index], title="Length Counts")
     fig.update_layout(xaxis_title="Sequence length", showlegend=False)
     fig.write_html(os.path.join(output_path, "length_distribution.html"))
 
 
 def length_distribution(lengths, output_path, plot=False):
+    """
+    Saves only non-zero entries of lengths as csv-file.
+
+    :param lengths: 1d-array of length counts
+    :param output_path: path-like object for save location
+    :param plot: boolean value, if plotting will be done; defaults to False
+    """
     non_zero_indices = np.nonzero(lengths)[0]
     df = pd.DataFrame(index=range(1, len(lengths) + 1), data=lengths, columns=["Count"], dtype=int)
     df.index.name = "Length"
+    # save only non-zero entries
     df.iloc[non_zero_indices].to_csv(os.path.join(output_path, "seq_length.csv"), sep="\t")
     if plot:
-        length_plot(df, (non_zero_indices[0], non_zero_indices[-1]), output_path)
+        length_plot(df, output_path)
 
 
-def seq_content_plot(data, name):
+def seq_content_plot(data, save_file):
+    """
+    Makes plotly line plot with base content for each base.
+
+    :param data: dataframe with "Base" index and Bases as columns
+    :param save_file: path-like object for save location
+    """
     data = data.reset_index()
-    fig = px.line(data, x="Base", y=data.columns[1:], title="Sequence content")
+    fig = px.line(data, x="Base", y=data.columns[1:], title="Sequence content",
+                  color_discrete_sequence=["grey", "green", "red", "blue", "black"])
     fig.update_layout(yaxis_title="Base content %")
-    fig.write_html(name)
+    fig.write_html(save_file)
 
 
 def per_base_seq_content(base_counts, output_path, plot=False):
+    """
+    Makes per position base content statistic.
+
+    :param base_counts: array with counts for each base;
+    row for each base(are assumed to be in Base-enum order), column is position
+    :param output_path: path-like object for save location
+    :param plot: boolean value, if plotting will be done; defaults to False
+    """
     base_count = base_counts.shape[1]
     sums = np.sum(base_counts, axis=0)
     df = pd.DataFrame(index=range(1, base_count + 1))
     df.index.name = "Base"
     for base in Base:
+        # TODO catch error if base count is to low
         df[str(base)] = base_counts[base.value, :] / sums * 100
     df.to_csv(os.path.join(output_path, "per_base_seq_content.csv"), sep="\t")
     if plot:
         seq_content_plot(df, os.path.join(output_path, "base_seq_content.html"))
 
 
-def plot_motif_counts(data, name):
+def plot_motif_counts(data, save_loc):
+    """
+    Makes plotly line plot of motif-start count at a given position.
+
+    :param data: dataframe with "Base" index and motifs as column names
+    :param save_loc: path-like object for save location
+    """
     data = data.reset_index()
     fig = px.line(data, x="Base", y=data.columns[1:], title="Motif start positions")
     fig.update_layout(yaxis_title="Count")
-    fig.write_html(name)
+    fig.write_html(save_loc)
 
 
 def motif_statistic(motif_data, motifs, output_path, plot=False):
+    """
+    Saves motif counts as csv-file and optionally plots them.
+
+    :param motif_data: array of motif counts
+    :param motifs: iterable of motifs
+    :param output_path: path-like object for save location
+    :param plot: boolean value, if plotting will be done; defaults to False
+    """
     non_zero_columns_ind = np.unique(np.nonzero(motif_data)[1])
     df = pd.DataFrame(index=range(1, motif_data.shape[1] + 1))
     df.index.name = "Base"
     for ind, motif in enumerate(motifs):
         df[motif] = motif_data[ind]
+    # only save non-zero columns
     df.iloc[non_zero_columns_ind].to_csv(os.path.join(output_path, "motif_counts.csv"), sep="\t")
     if plot:
         plot_motif_counts(df, os.path.join(output_path, "motif_counts.html"))
 
 
-def main(file_path, num_seqs, max_len, pattern_list, barcode_ind, plotting, n_jobs, output_path):
-    block_size = num_seqs / n_jobs
-    arg_list = [(file_path, max_len, pattern_list, (int(i * block_size), int((i + 1) * block_size))) for i in
+def main(file_path, numb_seqs, max_len, patterns_list, barcode_indices, plotting, n_jobs, output_path):
+    block_size = numb_seqs / n_jobs
+    # due to int conversion and potential float block_size even the last sequence is considered
+    arg_list = [(file_path, max_len, patterns_list, (int(i * block_size), int((i + 1) * block_size))) for i in
                 range(n_jobs)]
     with mp.Pool(processes=n_jobs) as pool:
-        result = pool.starmap(aggregate_async, arg_list)
+        result = pool.starmap(aggregate, arg_list)
         length_data = 0
         base_content_data = 0
         motif_data = 0
-        qual_data = np.zeros((num_seqs, max_len), dtype=np.uint8)
+        # quality data is doubled in memory, could be a place for memory optimization
+        qual_data = np.zeros((numb_seqs, max_len), dtype=np.uint8)
 
+        # an index is needed to get the start and end position for saving quality data
         ind = 0
         for qual_scores, lengths, bases, motif_count in result:
             block_start, block_end = arg_list[ind][3]
@@ -202,22 +315,34 @@ def main(file_path, num_seqs, max_len, pattern_list, barcode_ind, plotting, n_jo
             motif_data += motif_count
             ind += 1
 
-        processes = []
-        processes.append(pool.apply_async(qual_per_base, (qual_data, barcode_ind, output_path)))
-        processes.append(pool.apply_async(length_distribution, (length_data, output_path, plotting)))
-        processes.append(pool.apply_async(per_base_seq_content, (base_content_data, output_path, plotting)))
-        processes.append(pool.apply_async(motif_statistic, (motif_data, pattern_list, output_path, plotting)))
+        # use multiple process, if available, to make statistics, they are independent of each other
+        processes = [pool.apply_async(quality_per_base, (qual_data, barcode_indices, output_path, plotting)),
+                     pool.apply_async(length_distribution, (length_data, output_path, plotting)),
+                     pool.apply_async(per_base_seq_content, (base_content_data, output_path, plotting)),
+                     pool.apply_async(motif_statistic, (motif_data, patterns_list, output_path, plotting))]
+        # waiting for started process to avoid confusion and terminate main-program if everything is done
         for process in processes:
             process.wait()
 
 
-def aggregate_async(file_path, max_len, motifs, block):
+def aggregate(file_path, max_len, motifs, block):
+    """
+    Aggregate quality, length, base count and pattern count data.
+
+    :param file_path: path-like object to fastq file
+    :param max_len: maximal sequence length
+    :param motifs: iterable of motifs/pattern
+    :param block: tuple with inclusive start index and exclusive end index of sequences to process
+    :return: arrays for quality, length, base count and pattern count data
+    """
     fq = read_fastq_file(file_path)
     start, end = block
+    # init arrays
     quality_scores = np.zeros((end - start, fq_file.maxlen), dtype=np.uint8)
     lengths = np.zeros(max_len)
     base_content = np.zeros((5, max_len))
     motifs_occ = np.zeros((len(motifs), max_len))
+
     for qual_ind, ind in enumerate(range(start, end)):
         read = fq[ind]
         seq = read.seq
@@ -246,14 +371,17 @@ def aggregate_async(file_path, max_len, motifs, block):
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    # TODO add help text
-    parser.add_argument("-f", "--file", dest="file_path", help="", required=True)
-    parser.add_argument("-o", "--output", dest="output", help="", default="./")
-    parser.add_argument("-m", "--motifs", dest="motifs", nargs='+', help="", default=[])
-    parser.add_argument("-p", "--plot", dest="plotting", action="store_true", help="")
-    parser.add_argument("-a", "--polya", dest="poly_a", type=int, help="")
-    parser.add_argument("-n", "--njobs", dest="n_jobs", help="", default=1, type=int)
-    parser.add_argument("-b", "--bar", dest="barcode", help="")
+    # could do settings as file, for easier calls
+    parser.add_argument("-f", "--file", dest="file_path", help="un-/zipped fastq file", required=True)
+    parser.add_argument("-o", "--output", dest="output", help="directory for output data", default="./")
+    parser.add_argument("-m", "--motifs", dest="motifs", nargs='+', help="search motifs", default=[])
+    parser.add_argument("-p", "--plot", dest="plotting", action="store_true", help="set to make plots")
+    parser.add_argument("-a", "--polya", dest="poly_a", type=int,
+                        help="minimal length of Poly-A tail to consider")
+    parser.add_argument("-n", "--njobs", dest="n_jobs",
+                        help="Number of processes to create for data aggregation, evaluation and plotting.",
+                        default=1, type=int)
+    parser.add_argument("-b", "--bar", dest="barcode", help="Sequence of Barcode format to extract indices")
 
     args = parser.parse_args()
 
