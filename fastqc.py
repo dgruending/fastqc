@@ -92,18 +92,18 @@ def _find_index(node, pattern, pattern_ind):
     :return: number of pattern start position or a number >= len(text)
     """
     if isinstance(node, suffix_tree.node.Leaf):
-        match_ind = node.start
+        match_ind = node.time_start
         # match rest of pattern against rest of text
         for (char_motif, char_seq) in zip(pattern[pattern_ind:], node.S[match_ind + pattern_ind:]):
             # Text ended or mismatch
             if not isinstance(char_seq, suffix_tree.util.UniqueEndChar) and Base[char_motif] != Base[char_seq]:
                 return node.end
-        return node.start
+        return node.time_start
 
     else:
         # check for pattern ending
         if pattern_ind == len(pattern):
-            return node.start
+            return node.time_start
         keys = [key for key in node.children.keys() if isinstance(key, suffix_tree.util.UniqueEndChar)
                 or Base[key] == Base[pattern[pattern_ind]]]
         indices = [_find_index(node.children[key], pattern, pattern_ind + 1) for key in keys]
@@ -377,7 +377,7 @@ def aggregate(file_path, max_len, motifs, block):
                 motifs_occ[motif_ind, motif_start] += 1
 
         # debugging log
-        if (start == 0 and qual_ind % 1000 == 0) or qual_ind % 1000000 == 0 :
+        if (start == 0 and qual_ind % 1000 == 0) or qual_ind % 1000000 == 0:
             logging.debug(f"Process {start}: {qual_ind + 1} sequences done elapsed time "
                           f"{(time.time() - start_time) * 10**3} ms")
 
@@ -415,9 +415,9 @@ if __name__ == '__main__':
     Path(args.output).mkdir(parents=True, exist_ok=True)
 
     if TIMING:
-        start = time.time()
+        time_start = time.time()
     main(args.file_path, num_seqs, fq_file.maxlen, pattern_list, barcode_ind, args.plotting, args.n_jobs, args.output)
     if TIMING:
-        end = time.time()
+        time_end = time.time()
         # noinspection PyUnboundLocalVariable
-        logging.debug(f"The time of execution of above program is : {(end - start) * 10 ** 3} ms")
+        logging.debug(f"The time of execution of above program is : {(time_end - time_start) * 10 ** 3} ms")
