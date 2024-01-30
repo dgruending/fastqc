@@ -23,7 +23,6 @@ class Base(Enum):
     C = 3
     N = 4
 
-    @property
     def __str__(self):
         """
         Single letter string representation of the Base.
@@ -61,7 +60,7 @@ class Base(Enum):
         elif isinstance(other, numbers.Number):
             return self.value == other
         elif isinstance(other, str):
-            return self.__str__ == other
+            return str(self) == other
         else:
             raise ValueError(f"{type(other)} can not be compared: {other}")
 
@@ -149,16 +148,8 @@ def box_plot(arr, name, save_loc, indexes=None):
     fig.update_layout(showlegend=False, title=name)
     if indexes is None:
         indexes = range(arr.shape[1])
-    if len(indexes) > 20:
-        # TODO make plots without all data points to improve performance
-        for base_ind in range(9):
-            fig.add_trace(go.Box(y=arr[:, base_ind], name=f"Base {base_ind + 1}"))
-        for base_ind in range(14, len(indexes), 5):
-            fig.add_trace(
-                go.Box(y=np.ravel(arr[:, base_ind - 5:base_ind]), name=f"Base {base_ind - 4} - {base_ind + 1}"))
-    else:
-        for base_ind in indexes:
-            fig.add_trace(go.Box(y=arr[:, base_ind], name=f"Base {base_ind + 1}"))
+    for base_ind in indexes:
+        fig.add_trace(go.Box(y=arr[:, base_ind], name=f"Base {base_ind + 1}", fillcolor="yellow"))
     fig.write_html(save_loc)
 
 
@@ -180,10 +171,10 @@ def quality_per_base(quality_arr, zoom_indexes, output_path, plot=False):
     # TODO handle missing values separately
     df["Mean"] = np.mean(quality_arr, axis=0)
     df["Median"] = np.median(quality_arr, axis=0)
-    df["Lower Quartile"] = np.percentile(quality_arr, 25, axis=0)
-    df["Upper Quartile"] = np.percentile(quality_arr, 75, axis=0)
-    df["10th Percentile"] = np.percentile(quality_arr, 10, axis=0)
-    df["90th Percentile"] = np.percentile(quality_arr, 90, axis=0)
+    df["Lower_Quartile"] = np.percentile(quality_arr, 25, axis=0)
+    df["Upper_Quartile"] = np.percentile(quality_arr, 75, axis=0)
+    df["10th_Percentile"] = np.percentile(quality_arr, 10, axis=0)
+    df["90th_Percentile"] = np.percentile(quality_arr, 90, axis=0)
     df["Minimum"] = np.min(quality_arr, axis=0)
     df["Maximum"] = np.max(quality_arr, axis=0)
     df.to_csv(os.path.join(output_path, "seq_qual_per_base.csv"), sep="\t")
