@@ -29,7 +29,6 @@ class Base(Enum):
     C = 3
     N = 4
 
-    @property
     def __str__(self):
         """
         Single letter string representation of the Base.
@@ -67,7 +66,7 @@ class Base(Enum):
         elif isinstance(other, numbers.Number):
             return self.value == other
         elif isinstance(other, str):
-            return self.__str__ == other
+            return str(self) == other
         else:
             raise ValueError(f"{type(other)} can not be compared: {other}")
 
@@ -141,30 +140,38 @@ def read_fastq_file(file_path):
         raise FileNotFoundError(f"FastQ file \"{file_path}\" does not exist.")
 
 
-def box_plot(arr, name, save_loc, indexes=None):
+def box_plot(df, arr, name, save_loc, indexes=None):
     """
     Makes a plotly boxplot for a given array of quality values.
 
+    :param df: dataframe with Median, Lower_Quartile and Upper_Quartile
     :param arr: array of quality values.
     :param name: string-like object for plot title
     :param save_loc: path-like object for plot save location
     :param indexes: iterable of columns to use; if None all are used; default=None
     """
-    fig = go.Figure()
     # TODO add y-axis label
-    fig.update_layout(showlegend=False, title=name)
+    layout = go.Layout(showlegend=False, title=name)
     if indexes is None:
         indexes = range(arr.shape[1])
-    if len(indexes) > 20:
-        # TODO make plots without all data points to improve performance
-        for base_ind in range(9):
-            fig.add_trace(go.Box(y=arr[:, base_ind], name=f"Base {base_ind + 1}"))
-        for base_ind in range(14, len(indexes), 5):
-            fig.add_trace(
-                go.Box(y=np.ravel(arr[:, base_ind - 5:base_ind]), name=f"Base {base_ind - 4} - {base_ind + 1}"))
-    else:
-        for base_ind in indexes:
-            fig.add_trace(go.Box(y=arr[:, base_ind], name=f"Base {base_ind + 1}"))
+    inter_quantile_range = df["Upper_Quartile"].values - df["Lower_Quartile"].values
+    traces = []
+    for base_ind in indexes:
+        box_trace = go.Box(
+            x=[base_ind + 1],
+            q1=[df["Lower_Quartile"].values[base_ind]],
+            median=[df["Median"].values[base_ind]],
+            q3=[df["Upper_Quartile"].values[base_ind]],
+            upperfence=[df["Upper_Quartile"].values[base_ind] + 1.5 * inter_quantile_range[base_ind]],
+            lowerfence=[df["Lower_Quartile"].values[base_ind] - 1.5 * inter_quantile_range[base_ind]],
+            name=f"Base {base_ind + 1}",
+            marker=dict(color="blue")
+        )
+        traces.append(box_trace)
+    traces.append(go.Scatter(x=df.index.values + 1, y=df["Mean"].values, line=dict(color="red"), mode="lines",
+                             name="Mean"))
+    # TODO add outliers
+    fig = go.Figure(data=traces, layout=layout)
     fig.write_html(save_loc)
 
 
@@ -186,21 +193,21 @@ def quality_per_base(quality_arr, zoom_indexes, output_path, plot=False):
     # TODO handle missing values separately
     df["Mean"] = np.mean(quality_arr, axis=0)
     df["Median"] = np.median(quality_arr, axis=0)
-    df["Lower Quartile"] = np.percentile(quality_arr, 25, axis=0)
-    df["Upper Quartile"] = np.percentile(quality_arr, 75, axis=0)
-    df["10th Percentile"] = np.percentile(quality_arr, 10, axis=0)
-    df["90th Percentile"] = np.percentile(quality_arr, 90, axis=0)
+    df["Lower_Quartile"] = np.percentile(quality_arr, 25, axis=0)
+    df["Upper_Quartile"] = np.percentile(quality_arr, 75, axis=0)
+    df["10th_Percentile"] = np.percentile(quality_arr, 10, axis=0)
+    df["90th_Percentile"] = np.percentile(quality_arr, 90, axis=0)
     df["Minimum"] = np.min(quality_arr, axis=0)
     df["Maximum"] = np.max(quality_arr, axis=0)
     df.to_csv(os.path.join(output_path, "seq_qual_per_base.csv"), sep="\t")
     if plot:
-        box_plot(quality_arr, "Sequence Quality per Base",
+        box_plot(df, quality_arr, "Sequence Quality per Base",
                  os.path.join(output_path, "seq_qual_per_base.html"))
     if zoom_indexes:
         zoom_df = df.loc[zoom_indexes]
         zoom_df.to_csv(os.path.join(output_path, "zoom.csv"), sep="\t")
         if plot:
-            box_plot(quality_arr, "Barcode quality", os.path.join(output_path, "barcode_quality.html"),
+            box_plot(df, quality_arr, "Barcode quality", os.path.join(output_path, "barcode_quality.html"),
                      indexes=zoom_indexes)
 
 
