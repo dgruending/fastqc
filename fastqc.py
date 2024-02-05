@@ -116,7 +116,7 @@ def get_barcode_ind(barcode):
     :return: list of indices
     """
     if barcode:
-        return [ind for ind, char in enumerate(barcode, start=1) if char == 'X']
+        return [ind for ind, char in enumerate(barcode) if char == 'X']
     else:
         return []
 
@@ -144,10 +144,10 @@ def box_plot(df, arr, name, save_loc, indexes=None):
     :param save_loc: path-like object for plot save location
     :param indexes: iterable of columns to use; if None all are used; default=None
     """
-    # TODO add y-axis label
     layout = go.Layout(showlegend=False, title=name)
     if indexes is None:
         indexes = range(arr.shape[1])
+    indexes = np.array(indexes)
     inter_quantile_range = df["Upper_Quartile"].values - df["Lower_Quartile"].values
     traces = []
     for base_ind in indexes:
@@ -158,14 +158,15 @@ def box_plot(df, arr, name, save_loc, indexes=None):
             q3=[df["Upper_Quartile"].values[base_ind]],
             upperfence=[df["Upper_Quartile"].values[base_ind] + 1.5 * inter_quantile_range[base_ind]],
             lowerfence=[df["Lower_Quartile"].values[base_ind] - 1.5 * inter_quantile_range[base_ind]],
-            name=f"Base {base_ind + 1}",
+            name=f"Base_position {base_ind + 1}",
             marker=dict(color="blue")
         )
         traces.append(box_trace)
-    traces.append(go.Scatter(x=df.index.values + 1, y=df["Mean"].values, line=dict(color="red"), mode="lines",
+    traces.append(go.Scatter(x=indexes+1, y=df["Mean"].values[indexes], line=dict(color="red"), mode="lines",
                              name="Mean"))
-    # TODO add outliers
+    # IMPROVE: add outliers
     fig = go.Figure(data=traces, layout=layout)
+    fig.update_xaxes(title_text="Position in read(bp)")
     fig.write_html(save_loc)
 
 
@@ -181,10 +182,10 @@ def quality_per_base(quality_arr, zoom_indexes, output_path, plot=False):
     """
     base_count = quality_arr.shape[1]
     df = pd.DataFrame(index=range(1, base_count + 1))
-    df.index.name = "Base"
+    df.index.name = "Base_position"
     # quality array could have values of 0 representing no quality entry,
     # because for example the sequence has ended early
-    # TODO handle missing values separately
+    # IMPROVE: handle missing values separately
     df["Mean"] = np.mean(quality_arr, axis=0)
     df["Median"] = np.median(quality_arr, axis=0)
     df["Lower_Quartile"] = np.percentile(quality_arr, 25, axis=0)
@@ -195,13 +196,14 @@ def quality_per_base(quality_arr, zoom_indexes, output_path, plot=False):
     df["Maximum"] = np.max(quality_arr, axis=0)
     df.to_csv(os.path.join(output_path, "seq_qual_per_base.csv"), sep="\t")
     if plot:
-        box_plot(df, quality_arr, "Sequence Quality per Base",
+        box_plot(df, quality_arr, "Quality scores across all bases",
                  os.path.join(output_path, "seq_qual_per_base.html"))
     if zoom_indexes:
-        zoom_df = df.loc[zoom_indexes]
-        zoom_df.to_csv(os.path.join(output_path, "zoom.csv"), sep="\t")
+        zoom_df = df.iloc[zoom_indexes]
+        zoom_df.to_csv(os.path.join(output_path, "barcode_quality.csv"), sep="\t")
         if plot:
-            box_plot(df, quality_arr, "Barcode quality", os.path.join(output_path, "barcode_quality.html"),
+            box_plot(df, quality_arr, "Quality scores across barcode",
+                     os.path.join(output_path, "barcode_quality.html"),
                      indexes=zoom_indexes)
 
 
@@ -238,13 +240,13 @@ def seq_content_plot(data, save_file):
     """
     Makes plotly line plot with base content for each base.
 
-    :param data: dataframe with "Base" index and Bases as columns
+    :param data: dataframe with "Base_position" index and Bases as columns
     :param save_file: path-like object for save location
     """
     data = data.reset_index()
-    fig = px.line(data, x="Base", y=data.columns[1:], title="Sequence content",
+    fig = px.line(data, x="Base_position", y=data.columns[1:], title="Sequence content",
                   color_discrete_sequence=["grey", "green", "red", "blue", "black"])
-    fig.update_layout(yaxis_title="Base content %")
+    fig.update_layout(yaxis_title="Base content %", xaxis_title="Position in read(bp)", legend_title_text="Bases")
     fig.write_html(save_file)
 
 
@@ -260,9 +262,8 @@ def per_base_seq_content(base_counts, output_path, plot=False):
     base_count = base_counts.shape[1]
     sums = np.sum(base_counts, axis=0)
     df = pd.DataFrame(index=range(1, base_count + 1))
-    df.index.name = "Base"
+    df.index.name = "Base_position"
     for base in Base:
-        # TODO catch error if base count is to low
         df[str(base)] = base_counts[base.value, :] / sums * 100
     df.to_csv(os.path.join(output_path, "per_base_seq_content.csv"), sep="\t")
     if plot:
@@ -273,12 +274,12 @@ def plot_motif_counts(data, save_loc):
     """
     Makes plotly line plot of motif-start count at a given position.
 
-    :param data: dataframe with "Base" index and motifs as column names
+    :param data: dataframe with "Base_position" index and motifs as column names
     :param save_loc: path-like object for save location
     """
     data = data.reset_index()
-    fig = px.line(data, x="Base", y=data.columns[1:], title="Motif start positions")
-    fig.update_layout(yaxis_title="Count")
+    fig = px.line(data, x="Base_position", y=data.columns[1:], title="Motif start positions")
+    fig.update_layout(yaxis_title="Count", legend_title_text="Motifs", xaxis_title="Position in read(bp)")
     fig.write_html(save_loc)
 
 
@@ -293,7 +294,7 @@ def motif_statistic(motif_data, motifs, output_path, plot=False):
     """
     non_zero_columns_ind = np.unique(np.nonzero(motif_data)[1])
     df = pd.DataFrame(index=range(1, motif_data.shape[1] + 1))
-    df.index.name = "Base"
+    df.index.name = "Base_position"
     for ind, motif in enumerate(motifs):
         df[motif] = motif_data[ind]
     # only save non-zero columns
@@ -365,7 +366,7 @@ def aggregate(file_path, max_len, motifs, block):
         lengths[len(read) - 1] += 1
 
         # get base content information
-        # TODO optimize?
+        # IMPROVE: optimize?
         for base_ind in range(len(seq)):
             base_content[Base[seq[base_ind]].value, base_ind] += 1
 
